@@ -1,0 +1,147 @@
+#!/usr/bin/perl
+our $APP     = 'mpdcheat';
+our $VERSION = 0.1;
+
+my $DEBUG = 0;
+use strict;
+use Cwd qw(abs_path);
+use Pod::Usage;
+use Getopt::Long;
+
+my $basedir = '/mnt/Music_1';
+my $tempdir = '.tmp';
+my $cwd     = abs_path();
+
+my $host    = '192.168.1.101';
+my $port    = 6600;
+chomp(my $pass  = `smokingkills`);
+
+my $mpc_cmd = "mpc -h $host -p $port -P $pass --no-status";
+
+if(!@ARGV) {
+  usage();
+}
+
+GetOptions(
+  'base:s'    => \$basedir,
+  'temp:s'    => \$tempdir,
+  'host:s'    => \$host,
+  'port:i'    => \$port,
+  'pass:s'    => \$pass,
+  'h|help'    => \&usage,,
+  'man'       => sub { pod2usage( verbose => 2 )},
+);
+
+my @files = @ARGV;
+
+if(! -d "$basedir/$tempdir") {
+  if(make_path("$basedir/$tempdir")) {
+    print "\e[1m$basedir/$tempdir\e[0m created\n";
+  }
+  else {
+    print STDERR "Could not mkdir $basedir/$tempdir: $!\n";
+    exit(1);
+  }
+}
+
+while(glob("$basedir/$tempdir/*")) {
+  if(-l $_) {
+    if(unlink($_)) {
+      print "\e[1m\e[33;1munlinked\e[0m \e[33m$_\e[0m\n";
+    }
+    else {
+      print "\e[31;1munlink $_: $!\n";
+    }
+  }
+}
+
+my $link  = undef;
+my @links = ();
+
+for my $file(@files) {
+  $link = $file;
+  $link =~ s;/;_;g;
+
+  if($file !~ m;^/;) {
+    $file = "$cwd/$file";
+  }
+
+  print "file: $file\nlink: $basedir/$tempdir/$link\n";
+  if(symlink("$file", "$basedir/$tempdir/$link")) {
+    print "\e[1m\e[1m\e[33m  linked\e[0m $file =>\e[32;1m$basedir/$tempdir/$link\e[0m\n";
+  }
+  else {
+    print STDERR "symlink $file => $basedir/$tempdir/$link $!\n";
+  }
+  push(@links, $link);
+}
+
+system("$mpc_cmd update $tempdir") == 0
+  or print STDERR ":(\n";
+
+chomp(my $status = `mpc`);
+
+while($status =~ m;^Updating DB;m) {
+  chomp($status = `mpc`);
+  sleep 0.1;
+}
+
+for my $symlink(@links) {
+  #$symlink =~ s/([;<>\*\|`&\$!#\(\)\[\]\{\}:'"])/\\$1/g;
+  my $to_add = "$tempdir/$symlink";
+  system("mpc add \"$to_add\"") == 0
+    or print STDERR ":C !\n";
+}
+
+sub usage {
+  print "$APP v$VERSION\n\n";
+  pod2usage(verbose => 1);
+  exit(0);
+}
+
+=pod
+
+=head1 NAME
+
+mpdcheat - play new music instantly in MPD
+
+=head1 DESCRIPTION
+
+One downside of database based music playing software is that one have to
+actually update the database when one wants to listen to some not yet added
+music.
+
+mpdcheat solves this by cheating; symlinking the actual files to a temporary
+directory and tells MPD to update only that particular dir.
+
+This means that you dont have to use mplayer or similar for single tracks.
+
+=head1 OPTIONS
+
+    -b,   --base    basedir, as specified in mpd.conf
+    -t,   --temp    tempdir where the links will be created
+          --host    MPD host
+          --port    MPD port
+          --pass    MPD pass
+
+    -h,   --help    show the help and exit
+    -m,   --man     show the manual and exit
+
+=head1 AUTHOR
+
+Written by Magnus Woldrich
+
+=head1 REPORTING BUGS
+
+Report bugs to trapd00r@trapd00r.se
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 Magnus Woldrich
+
+License GPLv2
+
+=cut
+
+
+
