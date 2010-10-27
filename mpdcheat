@@ -1,20 +1,21 @@
 #!/usr/bin/perl
 our $APP     = 'mpdcheat';
-our $VERSION = 0.1;
+our $VERSION = '0.1.1';
 
 my $DEBUG = 0;
 use strict;
 use Cwd qw(abs_path);
 use Pod::Usage;
 use Getopt::Long;
+use File::Path 'make_path';
 
 my $basedir = '/mnt/Music_1';
 my $tempdir = '.tmp';
 my $cwd     = abs_path();
 
-my $host    = '192.168.1.101';
-my $port    = 6600;
-chomp(my $pass  = `smokingkills`);
+my $host = (defined($ENV{MPD_HOST})) ? $ENV{MPD_HOST} : 'localhost';
+my $port = (defined($ENV{MPD_PORT})) ? $ENV{MPD_PORT} : 6600;
+my $pass = (defined($ENV{MPD_PASS})) ? $ENV{MPD_PASS} : '';
 
 my $mpc_cmd = "mpc -h $host -p $port -P $pass --no-status";
 
@@ -89,7 +90,7 @@ while($status =~ m;^Updating DB;m) {
 for my $symlink(@links) {
   #$symlink =~ s/([;<>\*\|`&\$!#\(\)\[\]\{\}:'"])/\\$1/g;
   my $to_add = "$tempdir/$symlink";
-  system("mpc add \"$to_add\"") == 0
+  system("mpc add \"$to_add\" && mpc play") == 0
     or print STDERR ":C !\n";
 }
 
@@ -104,6 +105,10 @@ sub usage {
 =head1 NAME
 
 mpdcheat - play new music instantly in MPD
+
+=head1 USAGE
+
+mpdcheat [OPTION]... [FILE]...
 
 =head1 DESCRIPTION
 
